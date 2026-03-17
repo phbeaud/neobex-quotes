@@ -1,0 +1,26 @@
+# Secrets
+.env
+
+# Database
+*.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Exports & data (fichiers volumineux/variables)
+exports/
+data/raw/*.xlsx
+data/raw/*.pdf
+data/raw/*.json
+logs/
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
