@@ -7,6 +7,45 @@ from src.config import ZOHO_ORG_ID
 _BASE_URL = "https://www.zohoapis.com/invoice/v3"
 
 
+def _next_estimate_number(customer_name: str) -> str:
+    """Génère le prochain numéro d'estimate: NomClient-01, NomClient-02, etc."""
+    # Nettoyer le nom client pour en faire un préfixe
+    prefix = customer_name.strip().replace(" ", " ")
+
+    resp = requests.get(
+        f"{_BASE_URL}/estimates",
+        headers=get_headers(),
+        params={
+            "organization_id": ZOHO_ORG_ID,
+            "per_page": 200,
+            "customer_name": customer_name,
+        },
+    )
+    resp.raise_for_status()
+    estimates = resp.json().get("estimates", [])
+
+    # Compter les estimates de ce client
+    max_num = 0
+    client_count = 0
+    for e in estimates:
+        num = e.get("estimate_number", "")
+        # Chercher le pattern "NomClient-XX"
+        if num.lower().startswith(prefix.lower()):
+            suffix = num[len(prefix):].strip().lstrip("-").strip()
+            try:
+                n = int(suffix)
+                max_num = max(max_num, n)
+            except ValueError:
+                pass
+        # Compter toutes les estimates du client (quel que soit le format du numéro)
+        if e.get("customer_name", "").lower() == customer_name.lower():
+            client_count += 1
+
+    # Prendre le max entre le compteur séquentiel et le nombre total d'estimates
+    next_num = max(max_num, client_count) + 1
+    return f"{prefix}-{next_num:02d}"
+
+
 def get_contacts(search: str = None) -> list[dict]:
     """Récupère les contacts Zoho (clients)."""
     params = {"organization_id": ZOHO_ORG_ID}
@@ -29,6 +68,7 @@ def create_estimate(
     estimate_number: str = None,
     reference_number: str = None,
     notes: str = None,
+    customer_name: str = None,
 ) -> dict:
     """Crée une soumission (estimate) dans Zoho Invoice.
 
@@ -44,12 +84,23 @@ def create_estimate(
         reference_number: Référence interne (optionnel)
         notes: Notes pour le client (optionnel)
     """
+    if not estimate_number:
+        # Récupérer le nom du client si pas fourni
+        if not customer_name:
+            contacts = get_contacts()
+            for c in contacts:
+                if c.get("contact_id") == customer_id:
+                    customer_name = c.get("contact_name", "Soumission")
+                    break
+            else:
+                customer_name = "Soumission"
+        estimate_number = _next_estimate_number(customer_name)
+
     payload = {
         "customer_id": customer_id,
         "line_items": line_items,
+        "estimate_number": estimate_number,
     }
-    if estimate_number:
-        payload["estimate_number"] = estimate_number
     if reference_number:
         payload["reference_number"] = reference_number
     if notes:
@@ -70,6 +121,7 @@ def create_estimate(
 
 
 def push_finalized_quote(request_id: int, customer_id: str,
+                         customer_name: str = None,
                          estimate_number: str = None,
                          notes: str = None) -> dict:
     """Pousse une soumission finalisée vers Zoho Invoice.
@@ -133,6 +185,7 @@ def push_finalized_quote(request_id: int, customer_id: str,
             customer_id=customer_id,
             line_items=line_items,
             estimate_number=estimate_number,
+            customer_name=customer_name,
             notes=notes or "Soumission générée par Neobex Quotes",
         )
 

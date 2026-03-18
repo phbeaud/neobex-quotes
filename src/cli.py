@@ -86,8 +86,11 @@ def push_zoho_estimate(
 
         contact = contacts[0]
         customer_id = contact["contact_id"]
-        typer.echo(f"Client trouvé: {contact['contact_name']} (ID: {customer_id})")
+        customer_name = contact["contact_name"]
+        typer.echo(f"Client trouvé: {customer_name} (ID: {customer_id})")
+    else:
+        customer_name = customer
 
-    estimate = push_finalized_quote(request_id, customer_id)
+    estimate = push_finalized_quote(request_id, customer_id, customer_name=customer_name)
     typer.echo(f"Soumission créée dans Zoho: #{estimate.get('estimate_number', 'N/A')}")
     typer.echo(f"ID: {estimate.get('estimate_id', 'N/A')}")

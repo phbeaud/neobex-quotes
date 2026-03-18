@@ -71,9 +71,9 @@ def sync_items() -> int:
                 continue
 
             # Chercher un produit existant par source_sku (item_id Zoho)
+            # Ne pas filtrer par source_name : les produits Excel ont déjà le bon source_sku
             product = session.query(Product).filter(
                 Product.source_sku == item_id,
-                Product.source_name == "zoho",
             ).first()
 
             if not product:
