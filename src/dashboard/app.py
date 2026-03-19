@@ -1,5 +1,13 @@
 """Neobex Quotes — Dashboard Streamlit."""
 
+import sys
+from pathlib import Path
+
+# Ajouter la racine du projet au path (nécessaire pour Streamlit Cloud)
+_root = Path(__file__).resolve().parent.parent.parent
+if str(_root) not in sys.path:
+    sys.path.insert(0, str(_root))
+
 import streamlit as st
 
 st.set_page_config(

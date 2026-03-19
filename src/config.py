@@ -1,10 +1,22 @@
 """Configuration centrale du projet Neobex Quotes."""
 
 from pathlib import Path
-from dotenv import load_dotenv
 import os
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv pas dispo sur Streamlit Cloud, on utilise st.secrets
+
+# Sur Streamlit Cloud, injecter st.secrets dans os.environ
+try:
+    import streamlit as st
+    for key in ["SUPABASE_URL", "ZOHO_CLIENT_ID", "ZOHO_CLIENT_SECRET", "ZOHO_ORG_ID", "ZOHO_REFRESH_TOKEN"]:
+        if key in st.secrets and key not in os.environ:
+            os.environ[key] = st.secrets[key]
+except Exception:
+    pass
 
 # Chemins projet
 PROJECT_ROOT = Path(__file__).parent.parent
