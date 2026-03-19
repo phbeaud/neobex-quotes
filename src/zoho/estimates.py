@@ -173,8 +173,23 @@ def push_finalized_quote(request_id: int, customer_id: str,
             if product.source_sku and product.source_sku.isdigit() and len(product.source_sku) > 10:
                 item_data["item_id"] = product.source_sku
 
+            # Construire la description avec économies si prix client disponible
+            desc_parts = []
+
+            # Équivalence produit client
             if line.raw_description != product.title:
-                item_data["description"] = f"Demande client: {line.raw_description}"
+                desc_parts.append(f"Demande client: {line.raw_description}")
+
+            # Économies (seulement si le client a fourni son prix)
+            neobex_price = product.price or 0
+            if line.client_price and neobex_price > 0:
+                desc_parts.append(f"Vous payez actuellement : {line.client_price:.2f}$")
+                savings_pct = ((line.client_price - neobex_price) / line.client_price) * 100
+                if savings_pct > 0:
+                    desc_parts.append(f"Économie de : {savings_pct:.0f}%")
+
+            if desc_parts:
+                item_data["description"] = "\n".join(desc_parts)
 
             line_items.append(item_data)
 

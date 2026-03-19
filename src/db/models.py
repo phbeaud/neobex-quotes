@@ -71,6 +71,7 @@ class QuoteLine(Base):
     quantity = Column(Float, nullable=True)
     uom = Column(String(20), nullable=True)
     detected_category = Column(String(50), nullable=True)
+    client_price = Column(Float, nullable=True)  # prix actuel payé par le client
     status = Column(String(50), default="pending")  # pending, auto_approved, to_review, not_found
 
     request = relationship("QuoteRequest", back_populates="lines")

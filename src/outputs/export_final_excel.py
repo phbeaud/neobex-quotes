@@ -30,6 +30,7 @@ def export_final(review_file: str, request_id: int, output_path: str = None) -> 
             line_id = int(row["line_id"])
             chosen_raw = str(row.get("produit_choisi", "")).strip()
             price = row.get("prix_proposé")
+            client_price_raw = row.get("prix_client")
             comment = str(row.get("commentaire", "")).strip()
 
             line = session.get(QuoteLine, line_id)
@@ -80,6 +81,13 @@ def export_final(review_file: str, request_id: int, output_path: str = None) -> 
                 "prix_unitaire": price if pd.notna(price) else (product_price or ""),
                 "commentaire": comment if comment.lower() != "nan" else "",
             })
+
+            # Sauvegarder le prix client en DB (qu'il vienne du fichier ou de la saisie manuelle)
+            if pd.notna(client_price_raw) and str(client_price_raw).strip():
+                try:
+                    line.client_price = float(client_price_raw)
+                except (ValueError, TypeError):
+                    pass
 
             # Historique de validation
             if product:

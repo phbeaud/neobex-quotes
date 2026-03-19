@@ -94,3 +94,16 @@ def push_zoho_estimate(
     estimate = push_finalized_quote(request_id, customer_id, customer_name=customer_name)
     typer.echo(f"Soumission créée dans Zoho: #{estimate.get('estimate_number', 'N/A')}")
     typer.echo(f"ID: {estimate.get('estimate_id', 'N/A')}")
+
+
+@app.command()
+def dashboard():
+    """Lancer le tableau de bord Streamlit."""
+    import subprocess
+    import sys
+    typer.echo("Lancement du dashboard Neobex Quotes...")
+    subprocess.run([
+        sys.executable, "-m", "streamlit", "run",
+        "src/dashboard/app.py",
+        "--server.port", "8501",
+    ])

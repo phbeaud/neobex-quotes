@@ -54,6 +54,8 @@ def export_review(request_id: int, output_path: str = None) -> str:
                 row["produit_choisi"] = "1"
             else:
                 row["produit_choisi"] = ""
+            # Prix client : pré-rempli si détecté dans le fichier, sinon éditable
+            row["prix_client"] = line.client_price if line.client_price else ""
             row["prix_proposé"] = ""
 
             rows.append(row)

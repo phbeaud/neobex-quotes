@@ -31,12 +31,14 @@ def create_quote_request(session: Session, source_file: str, source_type: str) -
 
 
 def add_quote_line(session: Session, request_id: int, raw_desc: str,
-                   quantity: float = None, uom: str = None) -> QuoteLine:
+                   quantity: float = None, uom: str = None,
+                   client_price: float = None) -> QuoteLine:
     line = QuoteLine(
         quote_request_id=request_id,
         raw_description=raw_desc,
         quantity=quantity,
         uom=uom,
+        client_price=client_price,
     )
     session.add(line)
     session.flush()

@@ -7,3 +7,4 @@ python-dotenv>=1.0
 requests>=2.31
 pytest>=7.0
 sqlalchemy>=2.0
+streamlit>=1.36

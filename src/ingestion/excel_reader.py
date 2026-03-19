@@ -31,6 +31,9 @@ def read_client_file(filepath: str) -> list[dict]:
     desc_col = _find_column(df, ["description", "produit", "item", "article", "nom", "product"])
     qty_col = _find_column(df, ["quantité", "quantite", "qty", "qté", "qte"])
     uom_col = _find_column(df, ["unité", "unite", "uom", "um", "unit"])
+    price_col = _find_column(df, ["prix", "price", "coût", "cout", "cost",
+                                   "prix unitaire", "prix actuel", "unit price",
+                                   "prix client", "montant"])
 
     if desc_col is None:
         raise ValueError(
@@ -43,10 +46,17 @@ def read_client_file(filepath: str) -> list[dict]:
         desc = str(row[desc_col]).strip()
         if not desc or desc.lower() == "nan":
             continue
+        # Prix client : essayer _parse_price pour gérer les formats "6.25$", "CAD 12.99"
+        client_price = None
+        if price_col:
+            raw_price = _safe_str(row.get(price_col))
+            client_price = _parse_price(raw_price) if raw_price else _safe_float(row.get(price_col))
+
         lines.append({
             "description": desc,
             "quantity": _safe_float(row.get(qty_col)) if qty_col else None,
             "uom": str(row[uom_col]).strip() if uom_col and pd.notna(row.get(uom_col)) else None,
+            "client_price": client_price,
         })
 
     return lines
@@ -133,10 +143,18 @@ def _read_positional_format(filepath: str) -> list[dict]:
         else:
             full_desc = desc
 
+        # Prix client (si détecté dans le format positionnel)
+        client_price = None
+        if price_col is not None and pd.notna(row[price_col]):
+            client_price = _safe_float(row[price_col])
+            if client_price is None:
+                client_price = _parse_price(str(row[price_col]))
+
         lines.append({
             "description": full_desc,
             "quantity": None,
             "uom": None,
+            "client_price": client_price,
         })
 
     return lines

@@ -60,6 +60,7 @@ def run_analysis(filepath: str) -> int:
             desc = raw_line.get("description", "")
             qty = raw_line.get("quantity")
             uom = raw_line.get("uom")
+            client_price = raw_line.get("client_price")
 
             # Étape 3: Normaliser
             norm_desc = normalize_line(desc)
@@ -68,7 +69,9 @@ def run_analysis(filepath: str) -> int:
             category = detect_category(norm_desc)
 
             # Créer la ligne
-            quote_line = repo.add_quote_line(session, request.id, desc, qty, uom)
+            quote_line = repo.add_quote_line(
+                session, request.id, desc, qty, uom, client_price=client_price
+            )
             quote_line.normalized_description = norm_desc
             quote_line.detected_category = category
 
