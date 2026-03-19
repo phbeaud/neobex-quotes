@@ -130,6 +130,7 @@ def push_finalized_quote(request_id: int, customer_id: str,
     """
     from src.db.database import get_session
     from src.db.models import QuoteLine, QuoteSuggestion, Product
+    from src.pricing.pricing_engine import calculate_selling_price
 
     session = get_session()
     try:
@@ -163,10 +164,18 @@ def push_finalized_quote(request_id: int, customer_id: str,
             if not product:
                 continue
 
+            # Calculer le prix de vente avec la stratégie de pricing
+            sku = product.internal_sku or product.source_sku or ""
+            pricing = calculate_selling_price(
+                product_cost=product.price,
+                client_price=line.client_price,
+                product_sku=sku,
+            )
+
             item_data = {
                 "name": product.title,
                 "quantity": line.quantity or 1,
-                "rate": product.price or 0,
+                "rate": pricing["selling_price"],
             }
 
             # Si le produit a un source_sku Zoho (via sync ou import), l'utiliser
@@ -178,15 +187,13 @@ def push_finalized_quote(request_id: int, customer_id: str,
 
             # Équivalence produit client
             if line.raw_description != product.title:
-                desc_parts.append(f"Demande client: {line.raw_description}")
+                desc_parts.append(f"Équivalent au {line.raw_description}")
 
             # Économies (seulement si le client a fourni son prix)
-            neobex_price = product.price or 0
-            if line.client_price and neobex_price > 0:
+            if line.client_price and line.client_price > 0:
                 desc_parts.append(f"Vous payez actuellement : {line.client_price:.2f}$")
-                savings_pct = ((line.client_price - neobex_price) / line.client_price) * 100
-                if savings_pct > 0:
-                    desc_parts.append(f"Économie de : {savings_pct:.0f}%")
+                if pricing["savings_pct"] and pricing["savings_pct"] > 0:
+                    desc_parts.append(f"Économie de : {pricing['savings_pct']:.0f}%")
 
             if desc_parts:
                 item_data["description"] = "\n".join(desc_parts)
