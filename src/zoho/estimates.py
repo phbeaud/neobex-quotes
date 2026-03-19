@@ -136,6 +136,7 @@ def push_finalized_quote(request_id: int, customer_id: str,
     from src.db.database import get_session
     from src.db.models import QuoteLine, QuoteSuggestion, Product
     from src.pricing.pricing_engine import calculate_selling_price, MIN_MARGIN
+    from src.pricing.unit_converter import calculate_unit_conversion
 
     session = get_session()
     try:
@@ -173,11 +174,25 @@ def push_finalized_quote(request_id: int, customer_id: str,
             if not product:
                 continue
 
+            # Conversion d'unités (100 vs 1000, 4L vs 10L, etc.)
+            unit_conv = calculate_unit_conversion(
+                client_desc=line.raw_description,
+                neobex_desc=product.title or product.description or "",
+                neobex_uom=product.uom or "",
+                client_price=line.client_price,
+                neobex_price=product.price,
+            )
+
+            # Utiliser le prix client ajusté si conversion nécessaire
+            effective_client_price = line.client_price
+            if unit_conv["has_conversion"] and unit_conv["adjusted_client_price"]:
+                effective_client_price = unit_conv["adjusted_client_price"]
+
             # Calculer le prix de vente avec la stratégie de pricing
             sku = product.internal_sku or product.source_sku or ""
             pricing = calculate_selling_price(
                 product_cost=product.price,
-                client_price=line.client_price,
+                client_price=effective_client_price,
                 product_sku=sku,
             )
 
@@ -209,12 +224,23 @@ def push_finalized_quote(request_id: int, customer_id: str,
             if line.raw_description != product.title:
                 desc_parts.append(f"Équivalent au {line.raw_description}")
 
+            # Note de conversion d'unités
+            if unit_conv["has_conversion"] and unit_conv["note"]:
+                desc_parts.append(unit_conv["note"])
+
             # Économies (seulement si le client a fourni son prix)
             if line.client_price and line.client_price > 0:
-                desc_parts.append(f"Vous payez actuellement : {line.client_price:.2f}$")
+                if unit_conv["has_conversion"]:
+                    desc_parts.append(
+                        f"Vous payez actuellement : {line.client_price:.2f}$ "
+                        f"(ajusté: {effective_client_price:.2f}$)"
+                    )
+                else:
+                    desc_parts.append(f"Vous payez actuellement : {line.client_price:.2f}$")
                 if pricing["savings_pct"] and pricing["savings_pct"] > 0:
                     desc_parts.append(f"Économie de : {pricing['savings_pct']:.0f}%")
-                total_client_spent += line.client_price * qty
+                # Pour le total, utiliser le prix client ajusté × quantité
+                total_client_spent += effective_client_price * qty
 
             total_neobex_price += pricing["selling_price"] * qty
 
