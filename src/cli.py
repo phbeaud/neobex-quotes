@@ -68,32 +68,78 @@ def sync_zoho_items():
 @app.command()
 def push_zoho_estimate(
     request_id: int = typer.Argument(..., help="ID de la demande finalisée"),
-    customer: str = typer.Option(None, help="Nom du client (recherche dans Zoho)"),
+    customer: str = typer.Option(None, help="Nom du client (recherche fuzzy dans Zoho)"),
     customer_id: str = typer.Option(None, help="ID client Zoho directement"),
+    create_customer: bool = typer.Option(False, "--create", help="Créer le client s'il n'existe pas"),
 ):
     """Créer une soumission dans Zoho Invoice depuis une demande finalisée."""
-    from src.zoho.estimates import push_finalized_quote, get_contacts
+    from src.zoho.estimates import push_finalized_quote
+    from src.zoho.contacts import find_or_create_contact, search_contacts
 
     if not customer_id:
         if not customer:
-            typer.echo("Spécifiez --customer ou --customer-id")
+            typer.echo("Spécifiez --customer 'Nom du client'")
             raise typer.Exit(1)
 
-        contacts = get_contacts(customer)
-        if not contacts:
-            typer.echo(f"Client '{customer}' introuvable dans Zoho.")
-            raise typer.Exit(1)
+        result = find_or_create_contact(customer, auto_create=create_customer)
 
-        contact = contacts[0]
-        customer_id = contact["contact_id"]
-        customer_name = contact["contact_name"]
-        typer.echo(f"Client trouvé: {customer_name} (ID: {customer_id})")
+        if result["contact_id"]:
+            customer_id = result["contact_id"]
+            customer_name = result["contact_name"]
+            if result.get("created"):
+                typer.echo(f"✨ Nouveau client créé: {customer_name}")
+            else:
+                typer.echo(f"✅ Client trouvé: {customer_name} (score: {result['score']}%)")
+        else:
+            # Pas de match assez bon, montrer les suggestions
+            typer.echo(f"❌ Aucun client exact pour '{customer}'.")
+            suggestions = result.get("suggestions", [])
+            if suggestions:
+                typer.echo("\nSuggestions:")
+                for i, s in enumerate(suggestions, 1):
+                    typer.echo(f"  {i}. {s['contact_name']} ({s['score']}%)")
+                typer.echo(f"\nPour utiliser un de ces clients: --customer-id <ID>")
+            typer.echo(f"Pour créer un nouveau client: ajoutez --create")
+            raise typer.Exit(1)
     else:
         customer_name = customer
 
     estimate = push_finalized_quote(request_id, customer_id, customer_name=customer_name)
     typer.echo(f"Soumission créée dans Zoho: #{estimate.get('estimate_number', 'N/A')}")
     typer.echo(f"ID: {estimate.get('estimate_id', 'N/A')}")
+
+
+@app.command()
+def search_customer(
+    name: str = typer.Argument(..., help="Nom ou partie du nom du client"),
+):
+    """Rechercher un client dans Zoho Invoice."""
+    from src.zoho.contacts import search_contacts
+
+    typer.echo(f"Recherche: '{name}'...")
+    results = search_contacts(name)
+    if not results:
+        typer.echo("Aucun résultat.")
+        return
+
+    typer.echo(f"\n{'#':>3} | {'Score':>5} | {'Nom':40s} | {'Email'}")
+    typer.echo("-" * 80)
+    for i, r in enumerate(results, 1):
+        typer.echo(f"{i:>3} | {r['score']:>4.0f}% | {r['contact_name']:40s} | {r.get('email', '')}")
+
+
+@app.command()
+def create_customer(
+    name: str = typer.Argument(..., help="Nom du client à créer"),
+    email: str = typer.Option(None, help="Email du client"),
+    phone: str = typer.Option(None, help="Téléphone du client"),
+):
+    """Créer un nouveau client dans Zoho Invoice."""
+    from src.zoho.contacts import create_contact
+
+    contact = create_contact(name, email=email, phone=phone)
+    typer.echo(f"✨ Client créé: {contact['contact_name']}")
+    typer.echo(f"   ID: {contact['contact_id']}")
 
 
 @app.command()

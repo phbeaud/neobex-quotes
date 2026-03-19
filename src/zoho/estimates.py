@@ -47,19 +47,24 @@ def _next_estimate_number(customer_name: str) -> str:
 
 
 def get_contacts(search: str = None) -> list[dict]:
-    """Récupère les contacts Zoho (clients)."""
-    params = {"organization_id": ZOHO_ORG_ID}
-    if search:
-        params["contact_name"] = search
+    """Récupère les contacts Zoho (clients).
 
-    resp = requests.get(
-        f"{_BASE_URL}/contacts",
-        headers=get_headers(),
-        params=params,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    return data.get("contacts", [])
+    DEPRECATED: utiliser src.zoho.contacts.search_contacts() pour une
+    recherche fuzzy, ou find_or_create_contact() pour auto-créer.
+    """
+    from src.zoho.contacts import search_contacts, get_all_contacts
+
+    if search:
+        # Recherche fuzzy au lieu du match exact Zoho
+        results = search_contacts(search)
+        # Retourner au format compatible avec l'ancien code
+        return [
+            {"contact_id": r["contact_id"], "contact_name": r["contact_name"],
+             "email": r.get("email", "")}
+            for r in results
+        ]
+    else:
+        return get_all_contacts()
 
 
 def create_estimate(
