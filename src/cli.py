@@ -105,8 +105,26 @@ def push_zoho_estimate(
         customer_name = customer
 
     estimate = push_finalized_quote(request_id, customer_id, customer_name=customer_name)
-    typer.echo(f"Soumission créée dans Zoho: #{estimate.get('estimate_number', 'N/A')}")
-    typer.echo(f"ID: {estimate.get('estimate_id', 'N/A')}")
+    typer.echo(f"\n✅ Soumission créée dans Zoho: #{estimate.get('estimate_number', 'N/A')}")
+    typer.echo(f"   ID: {estimate.get('estimate_id', 'N/A')}")
+
+    # Résumé pricing
+    summary = estimate.get("_pricing_summary", {})
+    if summary:
+        typer.echo(f"\n{'─' * 50}")
+        typer.echo(f"📊 RÉSUMÉ DE LA SOUMISSION")
+        typer.echo(f"   Produits inclus : {summary.get('items_included', 0)}")
+        if summary.get("items_skipped", 0) > 0:
+            typer.echo(f"   ⚠️  Produits exclus (marge < 5%) : {summary['items_skipped']}")
+            for s in summary.get("skipped_details", []):
+                typer.echo(f"      → {s['description'][:40]} (marge: {s['margin_pct']:.1f}%)")
+        typer.echo(f"   Total soumission Neobex : {summary.get('total_neobex', 0):.2f}$")
+        if "economie_pct" in summary:
+            typer.echo(f"\n💰 ÉCONOMIES POUR LE CLIENT")
+            typer.echo(f"   Le client paie actuellement : {summary['total_client_actuel']:.2f}$")
+            typer.echo(f"   Notre soumission : {summary['total_neobex']:.2f}$")
+            typer.echo(f"   Économie totale : {summary['economie_totale']:.2f}$ ({summary['economie_pct']:.1f}%)")
+        typer.echo(f"{'─' * 50}")
 
 
 @app.command()

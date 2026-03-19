@@ -18,6 +18,7 @@ FIXED_PRICES: dict[str, float] = {
 # ── Marge par défaut ────────────────────────────────────────
 DEFAULT_MARGIN = 0.33       # 33%
 UNDERCUT_PERCENT = 0.05     # 5% en-dessous du prix client
+MIN_MARGIN = 0.05           # 5% marge minimum — en dessous, on exclut le produit
 
 
 def calculate_selling_price(

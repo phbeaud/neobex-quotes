@@ -13,6 +13,7 @@ def render():
 
     from src.dashboard.state import get_db_session
     from src.db.models import QuoteLine, QuoteSuggestion, Product
+    from src.pricing.pricing_engine import calculate_selling_price
 
     session = get_db_session()
     try:
@@ -29,12 +30,15 @@ def render():
                 st.rerun()
             return
 
-        # Aperçu des lignes à envoyer
+        # Aperçu des lignes avec pricing réel
         st.markdown(f"### Aperçu — {len(finalized)} lignes à envoyer")
 
         preview_rows = []
-        total = 0
-        total_savings = 0
+        total_neobex = 0
+        total_client = 0
+        skipped_count = 0
+        has_client_prices = False
+
         for line in finalized:
             sugg = session.query(QuoteSuggestion).filter(
                 QuoteSuggestion.quote_line_id == line.id,
@@ -47,54 +51,98 @@ def render():
                 ).first()
 
             product = session.get(Product, sugg.product_id) if sugg else None
+            if not product:
+                continue
+
             qty = line.quantity or 1
-            price = product.price if product else 0
-            amount = qty * price
-            total += amount
+            sku = product.internal_sku or product.source_sku or ""
+
+            # Calcul du prix de vente réel (stratégie pricing)
+            pricing = calculate_selling_price(
+                product_cost=product.price,
+                client_price=line.client_price,
+                product_sku=sku,
+            )
+
+            selling_price = pricing["selling_price"]
+            margin_pct = pricing["margin_pct"]
+            strategy = pricing["strategy"]
+            amount = qty * selling_price
+
+            # Filtre marge < 5% (sauf prix fixes)
+            if margin_pct < 5 and "prix_fixe" not in strategy:
+                skipped_count += 1
+                continue
+
+            total_neobex += amount
 
             savings_text = ""
-            if line.client_price and price > 0:
-                savings_pct = ((line.client_price - price) / line.client_price) * 100
-                if savings_pct > 0:
-                    savings_text = f"{savings_pct:.0f}%"
-                    total_savings += (line.client_price - price) * qty
+            client_price_text = "—"
+            if line.client_price and line.client_price > 0:
+                has_client_prices = True
+                client_price_text = f"{line.client_price:.2f}$"
+                total_client += line.client_price * qty
+                if pricing["savings_pct"] and pricing["savings_pct"] > 0:
+                    savings_text = f"{pricing['savings_pct']:.0f}%"
 
             preview_rows.append({
-                "Description client": line.raw_description[:50],
-                "Produit Neobex": product.title[:50] if product else "—",
-                "Qté": qty,
-                "Prix": f"{price:.2f}$",
+                "Description client": line.raw_description[:45],
+                "Produit Neobex": product.title[:45] if product else "—",
+                "Qté": int(qty),
+                "Prix vente": f"{selling_price:.2f}$",
                 "Montant": f"{amount:.2f}$",
-                "Prix client": f"{line.client_price:.2f}$" if line.client_price else "—",
+                "Stratégie": strategy.split("(")[0].strip(),
+                "Marge": f"{margin_pct:.0f}%",
+                "Prix client": client_price_text,
                 "Économie": savings_text,
             })
 
         st.dataframe(preview_rows, use_container_width=True, hide_index=True)
 
-        # Totaux
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Sous-total", f"{total:.2f}$")
-        col2.metric("Économies client", f"{total_savings:.2f}$" if total_savings > 0 else "—")
-        col3.metric("Lignes", len(finalized))
+        # Totaux et métriques
+        if skipped_count > 0:
+            st.warning(f"⚠️ {skipped_count} produit(s) exclus (marge < 5%)")
+
+        if has_client_prices and total_client > 0:
+            savings_total = total_client - total_neobex
+            savings_pct = (savings_total / total_client) * 100
+
+            st.markdown("---")
+            st.markdown("### 💰 Résumé des économies")
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Total client actuel", f"{total_client:.2f}$")
+            col2.metric("Notre soumission", f"{total_neobex:.2f}$")
+            col3.metric("Économie totale", f"{savings_total:.2f}$")
+            col4.metric("% d'économie", f"{savings_pct:.1f}%")
+        else:
+            col1, col2 = st.columns(2)
+            col1.metric("Total soumission", f"{total_neobex:.2f}$")
+            col2.metric("Lignes", len(preview_rows))
 
         st.markdown("---")
 
-        # Sélection du client Zoho
-        st.markdown("### Client Zoho")
+        # ── Sélection / création du client Zoho ──
+        st.markdown("### 👤 Client Zoho")
 
-        customer_search = st.text_input(
-            "Rechercher un client",
-            value=st.session_state.get("selected_customer_name", ""),
-            placeholder="Tapez le nom du client...",
-        )
+        col_search, col_create = st.columns([3, 1])
+        with col_search:
+            customer_input = st.text_input(
+                "Nom du client",
+                value=st.session_state.get("selected_customer_name", ""),
+                placeholder="Tapez le nom du client...",
+            )
+        with col_create:
+            st.markdown("<br>", unsafe_allow_html=True)
+            auto_create = st.checkbox("Créer si inexistant", value=True)
 
-        if customer_search and st.button("🔎 Chercher"):
-            _search_contacts(customer_search)
+        if customer_input and st.button("🔎 Chercher / Créer le client"):
+            _find_or_create_contact(customer_input, auto_create)
 
         # Afficher le client sélectionné
         if st.session_state.get("selected_customer_id"):
+            created_label = " (nouveau)" if st.session_state.get("customer_created") else ""
             st.success(
-                f"Client : **{st.session_state.selected_customer_name}** "
+                f"Client : **{st.session_state.selected_customer_name}**{created_label} "
                 f"(ID: {st.session_state.selected_customer_id})"
             )
 
@@ -106,38 +154,40 @@ def render():
         session.close()
 
 
-def _search_contacts(search: str):
-    """Recherche des contacts dans Zoho."""
+def _find_or_create_contact(name: str, auto_create: bool = True):
+    """Recherche intelligente + création auto du client Zoho."""
     try:
-        from src.zoho.estimates import get_contacts
-        contacts = get_contacts(search)
+        from src.zoho.contacts import find_or_create_contact, search_contacts
 
-        if not contacts:
-            st.warning(f"Aucun client trouvé pour '{search}'")
-            return
+        with st.spinner(f"Recherche de '{name}' dans Zoho..."):
+            result = find_or_create_contact(name, auto_create=auto_create)
 
-        # Afficher les résultats
-        options = {
-            c["contact_name"]: c["contact_id"]
-            for c in contacts[:10]
-        }
-
-        selected_name = st.selectbox(
-            "Sélectionnez le client",
-            options=list(options.keys()),
-        )
-
-        if selected_name:
-            st.session_state.selected_customer_id = options[selected_name]
-            st.session_state.selected_customer_name = selected_name
+        if result["contact_id"]:
+            st.session_state.selected_customer_id = result["contact_id"]
+            st.session_state.selected_customer_name = result["contact_name"]
+            st.session_state.customer_created = result.get("created", False)
             st.rerun()
+        else:
+            # Pas de match assez bon, montrer les suggestions
+            st.warning(f"Aucun match exact pour '{name}'")
+            suggestions = result.get("suggestions", [])
+            if suggestions:
+                st.markdown("**Suggestions :**")
+                for s in suggestions:
+                    col1, col2 = st.columns([4, 1])
+                    col1.write(f"{s['contact_name']} ({s['score']:.0f}%)")
+                    if col2.button("Utiliser", key=f"use_{s['contact_id']}"):
+                        st.session_state.selected_customer_id = s["contact_id"]
+                        st.session_state.selected_customer_name = s["contact_name"]
+                        st.session_state.customer_created = False
+                        st.rerun()
 
     except Exception as e:
         st.error(f"Erreur Zoho : {e}")
 
 
 def _push_to_zoho(request_id: int):
-    """Pousse la soumission vers Zoho."""
+    """Pousse la soumission vers Zoho avec résumé d'économies."""
     customer_id = st.session_state.selected_customer_id
     customer_name = st.session_state.selected_customer_name
 
@@ -153,11 +203,30 @@ def _push_to_zoho(request_id: int):
             est_total = estimate.get("total", 0)
 
             st.balloons()
+
+            # Résumé principal
             st.success(
                 f"✅ Soumission **{est_num}** créée avec succès!\n\n"
                 f"- Total : {est_total}$\n"
                 f"- Client : {customer_name}\n"
                 f"- ID Zoho : {estimate.get('estimate_id', 'N/A')}"
             )
+
+            # Résumé pricing
+            summary = estimate.get("_pricing_summary", {})
+            if summary:
+                if summary.get("items_skipped", 0) > 0:
+                    st.warning(
+                        f"⚠️ {summary['items_skipped']} produit(s) exclus (marge < 5%)"
+                    )
+
+                if "economie_pct" in summary:
+                    st.info(
+                        f"💰 **Économie totale pour le client : "
+                        f"{summary['economie_totale']:.2f}$ ({summary['economie_pct']:.1f}%)**\n\n"
+                        f"Le client payait {summary['total_client_actuel']:.2f}$ "
+                        f"→ Notre soumission : {summary['total_neobex']:.2f}$"
+                    )
+
         except Exception as e:
             st.error(f"Erreur lors du push : {e}")

@@ -16,8 +16,12 @@ EXPORTS_DIR = PROJECT_ROOT / "exports"
 LOGS_DIR = PROJECT_ROOT / "logs"
 
 # Base de données
-DB_PATH = PROJECT_ROOT / "neobex.db"
-DB_URL = f"sqlite:///{DB_PATH}"
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+if SUPABASE_URL:
+    DB_URL = SUPABASE_URL
+else:
+    DB_PATH = PROJECT_ROOT / "neobex.db"
+    DB_URL = f"sqlite:///{DB_PATH}"
 
 # Matching
 FUZZY_THRESHOLD = 55  # score minimum pour un match fuzzy

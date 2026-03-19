@@ -135,7 +135,7 @@ def push_finalized_quote(request_id: int, customer_id: str,
     """
     from src.db.database import get_session
     from src.db.models import QuoteLine, QuoteSuggestion, Product
-    from src.pricing.pricing_engine import calculate_selling_price
+    from src.pricing.pricing_engine import calculate_selling_price, MIN_MARGIN
 
     session = get_session()
     try:
@@ -148,6 +148,10 @@ def push_finalized_quote(request_id: int, customer_id: str,
             raise ValueError(f"Aucune ligne finalisée pour la demande #{request_id}")
 
         line_items = []
+        skipped_items = []  # Produits exclus (marge < 5%)
+        total_client_spent = 0.0  # Total que le client paie actuellement
+        total_neobex_price = 0.0  # Total soumission Neobex
+
         for line in lines:
             # Trouver le produit sélectionné
             sugg = session.query(QuoteSuggestion).filter(
@@ -177,9 +181,20 @@ def push_finalized_quote(request_id: int, customer_id: str,
                 product_sku=sku,
             )
 
+            # Filtre: exclure si marge < 5% (sauf prix fixes)
+            if pricing["margin_pct"] < (MIN_MARGIN * 100) and "prix_fixe" not in pricing["strategy"]:
+                skipped_items.append({
+                    "description": line.raw_description,
+                    "margin_pct": pricing["margin_pct"],
+                    "reason": pricing["strategy"],
+                })
+                continue
+
+            qty = line.quantity or 1
+
             item_data = {
                 "name": product.title,
-                "quantity": line.quantity or 1,
+                "quantity": qty,
                 "rate": pricing["selling_price"],
             }
 
@@ -199,6 +214,9 @@ def push_finalized_quote(request_id: int, customer_id: str,
                 desc_parts.append(f"Vous payez actuellement : {line.client_price:.2f}$")
                 if pricing["savings_pct"] and pricing["savings_pct"] > 0:
                     desc_parts.append(f"Économie de : {pricing['savings_pct']:.0f}%")
+                total_client_spent += line.client_price * qty
+
+            total_neobex_price += pricing["selling_price"] * qty
 
             if desc_parts:
                 item_data["description"] = "\n".join(desc_parts)
@@ -208,13 +226,33 @@ def push_finalized_quote(request_id: int, customer_id: str,
         if not line_items:
             raise ValueError("Aucun produit à envoyer dans l'estimate")
 
-        return create_estimate(
+        # Résumé des économies
+        summary = {
+            "items_included": len(line_items),
+            "items_skipped": len(skipped_items),
+            "skipped_details": skipped_items,
+            "total_neobex": round(total_neobex_price, 2),
+        }
+
+        if total_client_spent > 0:
+            savings_total = total_client_spent - total_neobex_price
+            savings_pct = (savings_total / total_client_spent) * 100
+            summary["total_client_actuel"] = round(total_client_spent, 2)
+            summary["economie_totale"] = round(savings_total, 2)
+            summary["economie_pct"] = round(savings_pct, 1)
+
+        estimate = create_estimate(
             customer_id=customer_id,
             line_items=line_items,
             estimate_number=estimate_number,
             customer_name=customer_name,
             notes=notes or "Soumission générée par Neobex Quotes",
         )
+
+        # Ajouter le résumé à la réponse
+        estimate["_pricing_summary"] = summary
+
+        return estimate
 
     finally:
         session.close()
