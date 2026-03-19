@@ -8,6 +8,7 @@ from src.matching.exact_match import try_exact_match
 from src.matching.fuzzy_match import try_fuzzy_match
 from src.matching.rules import apply_rules
 from src.matching.scorer import compute_final_score
+from src.matching.priority import apply_priority_boost
 from src.config import MAX_SUGGESTIONS, FUZZY_THRESHOLD
 
 
@@ -77,5 +78,9 @@ def find_matches(
     # 5. Score final et tri
     candidates = [compute_final_score(c, category) for c in candidates]
     candidates.sort(key=lambda x: x["score"], reverse=True)
+
+    # 6. Priorisation produit (boost certains produits préférés)
+    products_by_id = {p.id: p for p in products}
+    candidates = apply_priority_boost(candidates, normalized_desc, products_by_id)
 
     return candidates[:MAX_SUGGESTIONS]
