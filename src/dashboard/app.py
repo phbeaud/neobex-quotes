@@ -21,13 +21,16 @@ for _k in _SECRET_KEYS:
     except Exception:
         pass
 
+# Debug: vérifier les secrets
+_supabase_url = os.environ.get("SUPABASE_URL", "")
+_db_source = "Supabase" if _supabase_url else "SQLite (local)"
+st.write(f"DEBUG: SUPABASE_URL present = {bool(_supabase_url)}, len = {len(_supabase_url)}")
+st.write(f"DEBUG: URL starts with = {_supabase_url[:30] if _supabase_url else 'EMPTY'}")
+
 # Forcer la création de l'engine DB avec les secrets chargés
 from src.db.database import get_session as _gs
 _test_session = _gs()
 _test_session.close()
-
-# Debug: afficher la source DB dans la sidebar
-_db_source = "Supabase" if os.environ.get("SUPABASE_URL") else "SQLite (local)"
 
 st.set_page_config(
     page_title="Neobex Quotes",
