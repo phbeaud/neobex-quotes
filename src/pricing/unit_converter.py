@@ -1,164 +1,124 @@
-"""Conversion d'unités de mesure entre produit client et produit Neobex.
-
-Détecte les différences de format (100 vs 1000 unités, 4L vs 10L, etc.)
-et ajuste les prix pour une comparaison équitable.
-
-Exemples:
-- Couvre-chaussures: client a 100/pqt à 7.95$, Neobex a 1000/cs → conversion
-- Sacs: client a 200/cs, Neobex a 150/cs → conversion
-- Liquides: client a 4L, Neobex a 10L → conversion
-"""
+"""Conversion d'unités pour comparaison de prix équitable."""
 from __future__ import annotations
-
 import re
 
 
-def detect_unit_info(description: str) -> dict:
-    """Extrait les informations d'unité d'une description produit.
+def extract_unit_info(description: str, uom: str = None, case_qty: int = None) -> dict:
+    """Extrait les informations d'unité d'un produit.
 
     Returns:
-        dict avec:
-            - qty_per_unit: nombre d'items par unité d'achat (ex: 100, 500, 1000)
-            - volume_liters: volume en litres si applicable
-            - unit_type: 'count', 'volume', 'weight', 'length' ou 'unknown'
+        dict with:
+            - qty_per_unit: nombre d'items par unité vendue (100/bte, 500/cs, etc.)
+            - volume_liters: volume en litres si applicable (4L, 10L, etc.)
+            - unit_type: 'piece', 'volume', 'roll', 'sheet', etc.
     """
-    desc_lower = description.lower().strip()
-    info = {
-        "qty_per_unit": None,
-        "volume_liters": None,
-        "unit_type": "unknown",
-        "raw_unit": None,
-    }
+    text = f"{description} {uom or ''}".lower()
+    result = {"qty_per_unit": 1, "volume_liters": None, "unit_type": "piece"}
 
-    # ── Quantité par emballage ──
-    # Patterns: (100/bte), (500/cs), (200/caisse), 48/case, 48 rouleaux, etc.
+    # Détecter quantité par unité: (100/bte), (500/cs), (200/cs), (48rlx), etc.
     qty_patterns = [
-        r"(\d+)\s*/\s*(?:bte|boîte|boite|box|pqt|paquet|pack)",
-        r"(\d+)\s*/\s*(?:cs|caisse|case|cse)",
-        r"(\d+)\s*/\s*(?:rlx|rouleaux|rolls)",
-        r"\((\d+)\s*/\s*\w+\)",                     # (100/bte), (500/cs)
-        r"(\d+)\s*(?:un|unités|units)\s*/\s*\w+",
-        r"(\d+)\s*rouleaux",
-        r"(\d+)\s*feuilles",                         # 420 feuilles
+        r'(\d+)\s*/\s*(?:bte|boîte|boite|box|bx)',
+        r'(\d+)\s*/\s*(?:cs|caisse|case)',
+        r'(\d+)\s*/\s*(?:pqt|paquet|pkg)',
+        r'(\d+)\s*(?:rlx|rouleaux|rolls)\s*/\s*(?:caisse|case|cs)',
+        r'(\d+)\s*(?:rlx|rouleaux|rolls)',
+        r'(\d+)\s*/\s*(?:sac|bag)',
     ]
-
     for pattern in qty_patterns:
-        match = re.search(pattern, desc_lower)
+        match = re.search(pattern, text)
         if match:
-            qty = int(match.group(1))
-            if qty > 1:
-                info["qty_per_unit"] = qty
-                info["unit_type"] = "count"
-                info["raw_unit"] = match.group(0)
-                break
+            result["qty_per_unit"] = int(match.group(1))
+            break
 
-    # ── Volume en litres ──
-    # Patterns: 4L, 10L, 3.6L, 500ml, 946ml
-    vol_patterns = [
-        (r"(\d+(?:\.\d+)?)\s*(?:l|litres?|liters?)\b", 1.0),       # 4L, 10L, 3.6L
-        (r"(\d+(?:\.\d+)?)\s*(?:ml|millilitres?)\b", 0.001),  # 500ml, 946ml
-        (r"(\d+(?:,\d+)?)\s*(?:l|litres?)\b", 1.0),           # 3,6L (virgule)
-    ]
+    # Si case_qty est fourni et > qty détecté, utiliser case_qty
+    if case_qty and case_qty > result["qty_per_unit"]:
+        result["qty_per_unit"] = case_qty
 
-    for pattern, multiplier in vol_patterns:
-        match = re.search(pattern, desc_lower)
-        if match:
-            vol_str = match.group(1).replace(",", ".")
-            volume = float(vol_str) * multiplier
-            if volume > 0:
-                info["volume_liters"] = volume
-                if info["unit_type"] == "unknown":
-                    info["unit_type"] = "volume"
-                info["raw_unit"] = match.group(0)
-                break
+    # Détecter volume en litres: 4L, 10L, 3.6L, 3,6L, 946ml, 500ml
+    vol_match = re.search(r'(\d+(?:[.,]\d+)?)\s*[lL](?:\s|$|/)', text)
+    if vol_match:
+        result["volume_liters"] = float(vol_match.group(1).replace(',', '.'))
+        result["unit_type"] = "volume"
+    else:
+        ml_match = re.search(r'(\d+)\s*ml', text)
+        if ml_match:
+            result["volume_liters"] = int(ml_match.group(1)) / 1000
+            result["unit_type"] = "volume"
 
-    return info
+    # Détecter type de produit
+    if any(w in text for w in ['rouleau', 'roll', 'rlx', 'papier hygiénique', 'essuie']):
+        result["unit_type"] = "roll"
+    elif any(w in text for w in ['feuille', 'sheet', 'lingette', 'wipe', 'serviette']):
+        result["unit_type"] = "sheet"
+    elif any(w in text for w in ['sac', 'bag', 'garbage']):
+        result["unit_type"] = "bag"
+
+    return result
 
 
-def calculate_unit_conversion(
-    client_desc: str,
-    neobex_desc: str,
-    neobex_uom: str = None,
-    client_price: float = None,
-    neobex_price: float = None,
+def compare_units(
+    client_desc: str, client_price: float, client_uom: str,
+    neobex_desc: str, neobex_price: float, neobex_uom: str = None,
+    neobex_case_qty: int = None,
 ) -> dict:
-    """Compare les unités entre un produit client et un produit Neobex.
+    """Compare les prix en normalisant les unités.
 
     Returns:
-        dict avec:
-            - conversion_factor: ratio pour ajuster les prix (ex: 10.0 si Neobex a 10x plus)
-            - adjusted_client_price: prix client ajusté pour comparaison unitaire
-            - adjusted_neobex_price: prix Neobex ajusté pour comparaison unitaire
-            - note: texte explicatif pour la soumission
-            - has_conversion: True si une conversion a été appliquée
+        dict with:
+            - client_unit_price: prix par unité normalisée du client
+            - neobex_unit_price: prix par unité normalisée de Neobex
+            - conversion_note: explication de la conversion (pour affichage)
+            - savings_pct: % d'économie réel après conversion
+            - adjustment_factor: facteur multiplicateur pour ajuster la quantité
     """
+    client_info = extract_unit_info(client_desc, client_uom)
+    neobex_info = extract_unit_info(neobex_desc, neobex_uom, neobex_case_qty)
+
     result = {
-        "conversion_factor": 1.0,
-        "adjusted_client_price": client_price,
-        "adjusted_neobex_price": neobex_price,
-        "note": None,
-        "has_conversion": False,
+        "client_unit_price": client_price,
+        "neobex_unit_price": neobex_price,
+        "conversion_note": None,
+        "savings_pct": None,
+        "adjustment_factor": 1.0,
     }
 
-    # Combiner description Neobex + UOM pour plus d'info
-    neobex_full = f"{neobex_desc} {neobex_uom or ''}"
+    # Comparaison par volume (litres)
+    if client_info["volume_liters"] and neobex_info["volume_liters"]:
+        client_per_liter = client_price / client_info["volume_liters"]
+        neobex_per_liter = neobex_price / neobex_info["volume_liters"]
 
-    client_info = detect_unit_info(client_desc)
-    neobex_info = detect_unit_info(neobex_full)
+        result["client_unit_price"] = round(client_per_liter, 2)
+        result["neobex_unit_price"] = round(neobex_per_liter, 2)
+        result["conversion_note"] = (
+            f"Client: {client_price:.2f}$/{client_info['volume_liters']}L = "
+            f"{client_per_liter:.2f}$/L | "
+            f"Neobex: {neobex_price:.2f}$/{neobex_info['volume_liters']}L = "
+            f"{neobex_per_liter:.2f}$/L"
+        )
+        result["adjustment_factor"] = client_info["volume_liters"] / neobex_info["volume_liters"]
+        if client_per_liter > 0:
+            result["savings_pct"] = ((client_per_liter - neobex_per_liter) / client_per_liter) * 100
+        return result
 
-    # ── Conversion par quantité (100 vs 1000, 200 vs 150, etc.) ──
-    if client_info["qty_per_unit"] and neobex_info["qty_per_unit"]:
-        c_qty = client_info["qty_per_unit"]
-        n_qty = neobex_info["qty_per_unit"]
+    # Comparaison par quantité (pièces)
+    if client_info["qty_per_unit"] != neobex_info["qty_per_unit"]:
+        client_per_piece = client_price / client_info["qty_per_unit"]
+        neobex_per_piece = neobex_price / neobex_info["qty_per_unit"]
 
-        if c_qty != n_qty:
-            factor = n_qty / c_qty
-            result["conversion_factor"] = factor
-            result["has_conversion"] = True
+        result["client_unit_price"] = round(client_per_piece, 4)
+        result["neobex_unit_price"] = round(neobex_per_piece, 4)
+        result["conversion_note"] = (
+            f"Client: {client_price:.2f}$/{client_info['qty_per_unit']} = "
+            f"{client_per_piece:.4f}$/unité | "
+            f"Neobex: {neobex_price:.2f}$/{neobex_info['qty_per_unit']} = "
+            f"{neobex_per_piece:.4f}$/unité"
+        )
+        result["adjustment_factor"] = client_info["qty_per_unit"] / neobex_info["qty_per_unit"]
+        if client_per_piece > 0:
+            result["savings_pct"] = ((client_per_piece - neobex_per_piece) / client_per_piece) * 100
+        return result
 
-            if client_price is not None:
-                # Prix client ajusté pour la même quantité que Neobex
-                result["adjusted_client_price"] = round(client_price * factor, 2)
-
-            result["note"] = (
-                f"Format client: {c_qty} unités — Notre format: {n_qty} unités "
-                f"(ratio {factor:.1f}x)"
-            )
-
-            if client_price is not None:
-                result["note"] += (
-                    f"\nPrix client ajusté pour {n_qty} unités: "
-                    f"{result['adjusted_client_price']:.2f}$"
-                )
-
-    # ── Conversion par volume (4L vs 10L, etc.) ──
-    elif client_info["volume_liters"] and neobex_info["volume_liters"]:
-        c_vol = client_info["volume_liters"]
-        n_vol = neobex_info["volume_liters"]
-
-        if abs(c_vol - n_vol) > 0.01:  # Pas le même volume
-            factor = n_vol / c_vol
-            result["conversion_factor"] = factor
-            result["has_conversion"] = True
-
-            if client_price is not None:
-                result["adjusted_client_price"] = round(client_price * factor, 2)
-
-            # Format lisible
-            def _fmt_vol(v):
-                if v >= 1:
-                    return f"{v:.1f}L" if v != int(v) else f"{int(v)}L"
-                return f"{int(v * 1000)}ml"
-
-            result["note"] = (
-                f"Format client: {_fmt_vol(c_vol)} — Notre format: {_fmt_vol(n_vol)} "
-                f"(ratio {factor:.1f}x)"
-            )
-
-            if client_price is not None:
-                result["note"] += (
-                    f"\nPrix client ajusté pour {_fmt_vol(n_vol)}: "
-                    f"{result['adjusted_client_price']:.2f}$"
-                )
-
+    # Même unité, comparaison directe
+    if client_price > 0:
+        result["savings_pct"] = ((client_price - neobex_price) / client_price) * 100
     return result
