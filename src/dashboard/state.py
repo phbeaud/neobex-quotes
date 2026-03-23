@@ -3,11 +3,11 @@
 import streamlit as st
 
 
-@st.cache_resource
 def get_db_engine():
-    """Retourne l'engine DB (singleton pour Streamlit).
+    """Retourne l'engine DB.
 
     Import tardif pour que les secrets soient déjà dans os.environ.
+    Pas de @st.cache_resource car l'engine est déjà un lazy singleton.
     """
     from src.db.database import init_db, engine
     init_db()
