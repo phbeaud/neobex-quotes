@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 
-from src.db.models import Base
+# Base importé de façon lazy pour éviter les imports circulaires sur Streamlit Cloud
 
 _engine = None
 _Session = None
@@ -68,6 +68,7 @@ def __getattr__(name):
 
 def init_db():
     """Crée toutes les tables dans la base."""
+    from src.db.models import Base
     eng = _get_engine()
     Base.metadata.create_all(eng)
     _run_migrations()
