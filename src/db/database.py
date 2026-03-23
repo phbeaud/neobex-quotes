@@ -26,11 +26,21 @@ def _get_engine():
         supabase_url = os.environ.get("SUPABASE_URL", "")
         if supabase_url:
             db_url = supabase_url
+            print(f"[DB] Connexion Supabase: {db_url[:40]}...")
         else:
-            from src.config import PROJECT_ROOT
-            db_url = f"sqlite:///{PROJECT_ROOT / 'neobex.db'}"
+            from pathlib import Path
+            db_path = Path(__file__).resolve().parent.parent.parent / "neobex.db"
+            db_url = f"sqlite:///{db_path}"
+            print(f"[DB] Connexion SQLite: {db_url}")
         _engine = create_engine(db_url, echo=False)
     return _engine
+
+
+def reset_engine():
+    """Force la recréation de l'engine (utile si env vars changent)."""
+    global _engine, _Session
+    _engine = None
+    _Session = None
 
 
 def _get_session_factory():

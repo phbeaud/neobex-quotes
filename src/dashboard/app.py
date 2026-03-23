@@ -21,7 +21,11 @@ for _k in _SECRET_KEYS:
     except Exception:
         pass
 
-# Debug: afficher la source DB dans la sidebar (temporaire)
+# Force reset de l'engine DB pour garantir que les secrets sont pris en compte
+from src.db.database import reset_engine
+reset_engine()
+
+# Debug: afficher la source DB dans la sidebar
 _db_source = "Supabase" if os.environ.get("SUPABASE_URL") else "SQLite (local)"
 
 st.set_page_config(
