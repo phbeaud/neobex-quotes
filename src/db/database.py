@@ -48,10 +48,12 @@ def reset_engine():
 
 
 def _get_session_factory():
-    """Retourne la session factory (lazy singleton)."""
+    """Retourne la session factory, toujours liée au bon engine."""
     global _Session
-    if _Session is None:
-        _Session = sessionmaker(bind=_get_engine())
+    eng = _get_engine()
+    # Recréer la session factory si l'engine a changé
+    if _Session is None or _Session.kw.get("bind") is not eng:
+        _Session = sessionmaker(bind=eng)
     return _Session
 
 
