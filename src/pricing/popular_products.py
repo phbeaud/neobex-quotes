@@ -16,6 +16,8 @@ POPULAR_PRODUCTS: dict[str, list[dict]] = {
     "🧻 Papier": [
         {"sku": "SNS-48420", "label": "Papier hygiénique EVEREST 2 plis 420f (48/cs)", "default": True},
         {"sku": "INS-ts-500tt", "label": "Papier hygiénique 2 plis 500f (48/cs)"},
+        {"sku": "SNS-HWT800K", "label": "Essuie-mains brun/kraft (6/cs)", "default": True},
+        {"sku": "SNS-HWT800W", "label": "Essuie-mains blanc (6/cs)"},
         {"sku": "INS-ts-ft100", "label": "Mouchoirs 30x100 feuilles"},
         {"sku": "FSW1124B", "label": "Chiffon J 24x13"},
     ],
