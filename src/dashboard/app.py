@@ -1,6 +1,7 @@
 """Neobex Quotes — Dashboard Streamlit."""
 
 import sys
+import os
 from pathlib import Path
 
 # Ajouter la racine du projet au path (nécessaire pour Streamlit Cloud)
@@ -9,6 +10,16 @@ if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
 import streamlit as st
+
+# ── Charger les secrets Streamlit Cloud dans os.environ AVANT tout import ──
+_SECRET_KEYS = ["SUPABASE_URL", "ZOHO_CLIENT_ID", "ZOHO_CLIENT_SECRET",
+                "ZOHO_ORG_ID", "ZOHO_REFRESH_TOKEN"]
+for _k in _SECRET_KEYS:
+    try:
+        if _k in st.secrets and _k not in os.environ:
+            os.environ[_k] = st.secrets[_k]
+    except Exception:
+        pass
 
 st.set_page_config(
     page_title="Neobex Quotes",
