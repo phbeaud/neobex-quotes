@@ -111,16 +111,19 @@ def render():
             )
 
             # Render the card
-            _render_product_card(
-                line=line,
-                best_product=best_product,
-                best_score=best_score,
-                all_suggestions=all_suggestions,
-                pricing=pricing,
-                unit_comparison=unit_comparison,
-                card_status=card_status,
-                session=session,
-            )
+            try:
+                _render_product_card(
+                    line=line,
+                    best_product=best_product,
+                    best_score=float(best_score) if best_score else 0,
+                    all_suggestions=all_suggestions,
+                    pricing=pricing,
+                    unit_comparison=unit_comparison,
+                    card_status=card_status,
+                    session=session,
+                )
+            except Exception as card_err:
+                st.error(f"Erreur affichage: {line.raw_description[:40]} — {card_err}")
 
             # Track stats
             if current_decision == "keep" and pricing:
@@ -258,19 +261,24 @@ def _render_product_card(line, best_product, best_score, all_suggestions,
 
         # Price details
         if pricing:
+            _cost = float(best_product.price) if best_product.price else 0
+            _cpx = float(line.client_price) if line.client_price else 0
+            _sell = float(pricing.get('selling_price') or 0)
+            _marg = float(pricing.get('margin_pct') or 0)
+
             cols = st.columns(4)
             with cols[0]:
                 st.caption("Coût Neobex")
-                st.write(f"**{best_product.price:.2f}$**" if best_product.price else "N/A")
+                st.write(f"**{_cost:.2f}$**" if _cost else "N/A")
             with cols[1]:
                 st.caption("Prix client actuel")
-                st.write(f"**{line.client_price:.2f}$**" if line.client_price else "N/A")
+                st.write(f"**{_cpx:.2f}$**" if _cpx else "N/A")
             with cols[2]:
                 st.caption("Notre prix de vente")
-                st.write(f"**{pricing['selling_price']:.2f}$**")
+                st.write(f"**{_sell:.2f}$**")
             with cols[3]:
                 st.caption("Marge")
-                st.write(f"**{pricing['margin_pct']:.1f}%**")
+                st.write(f"**{_marg:.1f}%**")
 
             st.caption(f"Stratégie: {pricing['strategy']}")
 
