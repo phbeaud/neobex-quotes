@@ -70,22 +70,36 @@ def render():
             pricing = None
             unit_comparison = None
             if best_product and best_product.price:
+                try:
+                    client_px = float(line.client_price) if line.client_price else None
+                except (TypeError, ValueError):
+                    client_px = None
                 pricing = calculate_selling_price(
-                    product_cost=best_product.price,
-                    client_price=line.client_price,
+                    product_cost=float(best_product.price),
+                    client_price=client_px,
                     product_sku=best_product.internal_sku,
                 )
+                # Forcer les valeurs numériques
+                for k in ("selling_price", "margin_pct", "savings_pct"):
+                    if pricing.get(k) is not None:
+                        try:
+                            pricing[k] = float(pricing[k])
+                        except (TypeError, ValueError):
+                            pricing[k] = None
                 # Unit conversion
-                if line.client_price:
-                    unit_comparison = compare_units(
-                        client_desc=line.raw_description,
-                        client_price=line.client_price,
-                        client_uom=line.uom or "",
-                        neobex_desc=best_product.title or best_product.description or "",
-                        neobex_price=pricing["selling_price"],
-                        neobex_uom=best_product.uom,
-                        neobex_case_qty=best_product.case_qty,
-                    )
+                if client_px:
+                    try:
+                        unit_comparison = compare_units(
+                            client_desc=line.raw_description,
+                            client_price=client_px,
+                            client_uom=line.uom or "",
+                            neobex_desc=best_product.title or best_product.description or "",
+                            neobex_price=pricing["selling_price"] or 0,
+                            neobex_uom=best_product.uom,
+                            neobex_case_qty=best_product.case_qty,
+                        )
+                    except Exception:
+                        unit_comparison = None
 
             # Determine card status
             card_status = _get_card_status(line, pricing, best_product)
