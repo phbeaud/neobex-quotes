@@ -21,6 +21,12 @@ for _k in _SECRET_KEYS:
     except Exception:
         pass
 
+# Forcer la création de l'engine DB avec les secrets chargés
+import src.db.database as _db_mod
+_db_mod._engine = None
+_db_mod._Session = None
+_db_mod._get_engine()  # Crée l'engine maintenant avec SUPABASE_URL
+
 # Debug: afficher la source DB dans la sidebar
 _db_source = "Supabase" if os.environ.get("SUPABASE_URL") else "SQLite (local)"
 
