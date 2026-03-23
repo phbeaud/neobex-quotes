@@ -26,13 +26,17 @@ def _get_engine():
         supabase_url = os.environ.get("SUPABASE_URL", "")
         if supabase_url:
             db_url = supabase_url
-            print(f"[DB] Connexion Supabase: {db_url[:40]}...")
         else:
             from pathlib import Path
             db_path = Path(__file__).resolve().parent.parent.parent / "neobex.db"
             db_url = f"sqlite:///{db_path}"
-            print(f"[DB] Connexion SQLite: {db_url}")
         _engine = create_engine(db_url, echo=False)
+    # TOUJOURS vérifier que l'engine est bien PostgreSQL, sinon le recréer
+    if "sqlite" in str(_engine.url):
+        import os
+        supabase_url = os.environ.get("SUPABASE_URL", "")
+        if supabase_url:
+            _engine = create_engine(supabase_url, echo=False)
     return _engine
 
 
