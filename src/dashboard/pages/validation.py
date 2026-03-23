@@ -120,6 +120,10 @@ def render():
             else:
                 removed_count += 1
 
+        # Popular products to add
+        st.markdown("---")
+        _render_popular_products(session)
+
         # Summary section
         st.markdown("---")
         _render_summary(total_client_spend, total_neobex_spend, kept_count, removed_count, no_match_count)
@@ -413,6 +417,43 @@ def _finalize(session, lines, request_id):
         f"✅ {count} produits finalisés | {removed} retirés | "
         f"{equiv_count} nouvelles équivalences apprises"
     )
+
+
+def _render_popular_products(session):
+    """Section pour ajouter des produits populaires à la soumission."""
+    from src.pricing.popular_products import POPULAR_PRODUCTS
+    from src.db.models import Product
+
+    st.markdown("### 📦 Ajouter des produits populaires")
+    st.caption("Cochez les produits à ajouter à cette soumission (souvent demandés par les clients).")
+
+    if "popular_selections" not in st.session_state:
+        st.session_state.popular_selections = {}
+
+    for category, products in POPULAR_PRODUCTS.items():
+        with st.expander(category):
+            for item in products:
+                sku = item["sku"]
+                label = item["label"]
+                default = item.get("default", False)
+
+                # Chercher le prix en base
+                db_product = session.query(Product).filter(
+                    Product.internal_sku == sku
+                ).first()
+                price_str = f" — {db_product.price:.2f}$" if db_product and db_product.price else ""
+
+                checked = st.checkbox(
+                    f"{label}{price_str}",
+                    value=st.session_state.popular_selections.get(sku, False),
+                    key=f"pop_{sku}",
+                )
+                st.session_state.popular_selections[sku] = checked
+
+    # Compter les sélections
+    selected = [sku for sku, v in st.session_state.popular_selections.items() if v]
+    if selected:
+        st.success(f"✅ {len(selected)} produit(s) populaire(s) sélectionné(s)")
 
 
 def _status_emoji(status: str) -> str:
