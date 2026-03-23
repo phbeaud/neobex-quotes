@@ -14,7 +14,7 @@ def render():
     from src.dashboard.state import get_db_session
     from src.db.models import QuoteLine, QuoteSuggestion, Product
     from src.pricing.pricing_engine import calculate_selling_price
-    from src.pricing.unit_converter import calculate_unit_conversion
+    from src.pricing.unit_converter import compare_units
 
     session = get_db_session()
     try:
@@ -59,17 +59,18 @@ def render():
             sku = product.internal_sku or product.source_sku or ""
 
             # Conversion d'unités
-            unit_conv = calculate_unit_conversion(
-                client_desc=line.raw_description,
-                neobex_desc=product.title or product.description or "",
-                neobex_uom=product.uom or "",
-                client_price=line.client_price,
-                neobex_price=product.price,
-            )
-
             effective_client_price = line.client_price
-            if unit_conv["has_conversion"] and unit_conv["adjusted_client_price"]:
-                effective_client_price = unit_conv["adjusted_client_price"]
+            unit_conv = {"conversion_note": None, "adjustment_factor": 1.0}
+            if line.client_price and product.price:
+                unit_conv = compare_units(
+                    client_desc=line.raw_description,
+                    client_price=line.client_price,
+                    client_uom=line.uom or "",
+                    neobex_desc=product.title or product.description or "",
+                    neobex_price=product.price,
+                    neobex_uom=product.uom,
+                    neobex_case_qty=product.case_qty,
+                )
 
             # Calcul du prix de vente réel (stratégie pricing)
             pricing = calculate_selling_price(
@@ -95,9 +96,9 @@ def render():
             conversion_note = ""
             if line.client_price and line.client_price > 0:
                 has_client_prices = True
-                if unit_conv["has_conversion"]:
+                if unit_conv.get("conversion_note"):
                     client_price_text = f"{line.client_price:.2f}$ → {effective_client_price:.2f}$"
-                    conversion_note = f"×{unit_conv['conversion_factor']:.1f}"
+                    conversion_note = f"×{unit_conv.get('adjustment_factor', 1):.1f}"
                 else:
                     client_price_text = f"{line.client_price:.2f}$"
                 total_client += effective_client_price * qty
