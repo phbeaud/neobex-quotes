@@ -15,11 +15,21 @@ _Session = None
 
 
 def _get_engine():
-    """Retourne l'engine DB (lazy singleton)."""
+    """Retourne l'engine DB (lazy singleton).
+
+    Lit os.environ directement (pas config.DB_URL) pour éviter
+    le problème de cache module Python sur Streamlit Cloud.
+    """
     global _engine
     if _engine is None:
-        from src.config import DB_URL
-        _engine = create_engine(DB_URL, echo=False)
+        import os
+        supabase_url = os.environ.get("SUPABASE_URL", "")
+        if supabase_url:
+            db_url = supabase_url
+        else:
+            from src.config import PROJECT_ROOT
+            db_url = f"sqlite:///{PROJECT_ROOT / 'neobex.db'}"
+        _engine = create_engine(db_url, echo=False)
     return _engine
 
 
