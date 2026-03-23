@@ -232,8 +232,7 @@ def _render_product_card(line, best_product, best_score, all_suggestions,
             # Decision
             decision = st.radio(
                 "Action", ["❌ Retirer de la soumission", "🔍 Chercher manuellement"],
-                key=f"action_{line.id}", horizontal=True,
-            )
+                key=f"action_{int(line.id)}")
             st.session_state.line_decisions[line.id] = "remove" if "Retirer" in decision else "search"
             return
 
@@ -319,7 +318,7 @@ def _render_product_card(line, best_product, best_score, all_suggestions,
 
                 from src.pricing.pricing_engine import calculate_selling_price
                 choice = st.radio(
-                    "Choix", alt_options, key=f"alt_{line.id}",
+                    "Choix", alt_options, key=f"alt_{int(line.id)}",
                 )
 
                 if "Retirer" in choice:
@@ -332,8 +331,7 @@ def _render_product_card(line, best_product, best_score, all_suggestions,
                 decision = st.radio(
                     "Action",
                     ["Garder quand même", "❌ Retirer de la soumission"],
-                    key=f"action_{line.id}", horizontal=True,
-                )
+                    key=f"action_{int(line.id)}")
                 st.session_state.line_decisions[line.id] = "remove" if "Retirer" in decision else "keep"
         else:
             # Good match - auto keep
