@@ -36,11 +36,6 @@ def _run_analysis(uploaded_file):
         tmp.write(uploaded_file.getbuffer())
         tmp_path = tmp.name
 
-    # Debug: vérifier l'engine avant analyse
-    import src.db.database as _dbmod
-    _eng = _dbmod._get_engine()
-    st.warning(f"🔧 Engine URL: {_eng.url}")
-
     with st.spinner("Analyse en cours..."):
         try:
             from src.main import run_analysis
