@@ -10,6 +10,7 @@ from __future__ import annotations
 POPULAR_PRODUCTS: dict[str, list[dict]] = {
     "🧤 Gants": [
         {"sku": "ANBM10014", "label": "Gant Nitrile AdvanCare 3,5 mil (100/bte)", "default": True},
+        {"sku": "11311B 11321B 11331B 11341B", "label": "Gant Nitrile Noir TouchFlex 4,5 mil (100/bte)"},
         {"sku": "VGPF3001", "label": "Gant Vinyle Synthétique (100/bte)"},
         {"sku": "intco3l5040", "label": "Masque 3 plis Intco Niveau 3"},
     ],

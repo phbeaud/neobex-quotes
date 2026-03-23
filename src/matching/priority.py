@@ -14,10 +14,16 @@ from __future__ import annotations
 # Ajouter de nouvelles règles ici au besoin.
 PRIORITY_RULES: list[dict] = [
     {
-        "name": "Gants nitrile → AdvanCare",
+        "name": "Gants nitrile → AdvanCare + TouchFlex noir",
         "keywords": ["gant nitrile", "nitrile glove"],
-        "preferred_skus": ["ANBM10014"],  # AdvanCare 3,5 mil
+        "preferred_skus": ["ANBM10014", "11311B 11321B 11331B 11341B"],  # AdvanCare puis TouchFlex noir
         "boost": 15,
+    },
+    {
+        "name": "Gants nitrile noirs → TouchFlex noir",
+        "keywords": ["gant nitrile noir", "nitrile noir", "nitrile black", "black nitrile"],
+        "preferred_skus": ["11311B 11321B 11331B 11341B"],  # TouchFlex noir 4,5 mil
+        "boost": 20,
     },
     {
         "name": "Gants vinyle → Neobex vinyle synthétique",

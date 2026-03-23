@@ -232,7 +232,7 @@ def _render_product_card(line, best_product, best_score, all_suggestions,
                     "Notre prix",
                     f"{pricing['selling_price']:.2f}$",
                     delta=f"{pricing['savings_pct']:.0f}% économie" if pricing.get('savings_pct') and pricing['savings_pct'] > 0 else None,
-                    delta_color="normal" if pricing.get('savings_pct', 0) > 0 else "inverse",
+                    delta_color="normal" if (pricing.get('savings_pct') or 0) > 0 else "inverse",
                 )
 
         # Price details
