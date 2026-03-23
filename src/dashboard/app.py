@@ -16,10 +16,13 @@ _SECRET_KEYS = ["SUPABASE_URL", "ZOHO_CLIENT_ID", "ZOHO_CLIENT_SECRET",
                 "ZOHO_ORG_ID", "ZOHO_REFRESH_TOKEN"]
 for _k in _SECRET_KEYS:
     try:
-        if _k in st.secrets and _k not in os.environ:
-            os.environ[_k] = st.secrets[_k]
+        if _k in st.secrets:
+            os.environ[_k] = str(st.secrets[_k])
     except Exception:
         pass
+
+# Debug: afficher la source DB dans la sidebar (temporaire)
+_db_source = "Supabase" if os.environ.get("SUPABASE_URL") else "SQLite (local)"
 
 st.set_page_config(
     page_title="Neobex Quotes",
@@ -55,7 +58,7 @@ if st.session_state.current_request_id:
     st.sidebar.success(f"Demande active : #{st.session_state.current_request_id}")
 
 st.sidebar.markdown("---")
-st.sidebar.caption("Neobex Group — v2.0")
+st.sidebar.caption(f"Neobex Group — v2.0 | DB: {_db_source}")
 
 # --- Page routing ---
 page = st.session_state.page
