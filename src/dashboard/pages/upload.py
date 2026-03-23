@@ -36,12 +36,13 @@ def _run_analysis(uploaded_file):
         tmp.write(uploaded_file.getbuffer())
         tmp_path = tmp.name
 
+    # Debug: vérifier l'engine avant analyse
+    import src.db.database as _dbmod
+    _eng = _dbmod._get_engine()
+    st.warning(f"🔧 Engine URL: {_eng.url}")
+
     with st.spinner("Analyse en cours..."):
         try:
-            # Debug: vérifier l'engine avant analyse
-            import src.db.database as _dbmod
-            st.write(f"DEBUG engine URL: {_dbmod._engine.url if _dbmod._engine else 'None'}")
-            st.write(f"DEBUG engine id: {id(_dbmod._engine)}")
             from src.main import run_analysis
             request_id = run_analysis(tmp_path)
             st.session_state.current_request_id = request_id
