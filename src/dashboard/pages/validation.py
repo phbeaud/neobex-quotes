@@ -228,12 +228,15 @@ def _render_product_card(line, best_product, best_score, all_suggestions,
 
         with col2:
             if pricing:
-                st.metric(
-                    "Notre prix",
-                    f"{pricing['selling_price']:.2f}$",
-                    delta=f"{pricing['savings_pct']:.0f}% économie" if pricing.get('savings_pct') and pricing['savings_pct'] > 0 else None,
-                    delta_color="normal" if (pricing.get('savings_pct') or 0) > 0 else "inverse",
-                )
+                _spct = pricing.get('savings_pct')
+                if _spct and _spct > 0:
+                    st.metric("Notre prix", f"{pricing['selling_price']:.2f}$",
+                              delta=f"{_spct:.0f}% économie", delta_color="normal")
+                elif _spct is not None and _spct <= 0:
+                    st.metric("Notre prix", f"{pricing['selling_price']:.2f}$",
+                              delta=f"{abs(_spct):.0f}% plus cher", delta_color="inverse")
+                else:
+                    st.metric("Notre prix", f"{pricing['selling_price']:.2f}$")
 
         # Price details
         if pricing:
