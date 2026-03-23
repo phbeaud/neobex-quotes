@@ -228,8 +228,12 @@ def _render_product_card(line, best_product, best_score, all_suggestions,
 
         with col2:
             if pricing:
-                _spct = pricing.get('savings_pct')
-                if _spct and _spct > 0:
+                try:
+                    _spct = float(pricing.get('savings_pct') or 0) if pricing.get('savings_pct') is not None else None
+                except (TypeError, ValueError):
+                    _spct = None
+
+                if _spct is not None and _spct > 0:
                     st.metric("Notre prix", f"{pricing['selling_price']:.2f}$",
                               delta=f"{_spct:.0f}% économie", delta_color="normal")
                 elif _spct is not None and _spct <= 0:
