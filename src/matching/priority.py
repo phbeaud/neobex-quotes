@@ -43,6 +43,33 @@ PRIORITY_RULES: list[dict] = [
         "preferred_skus": ["INO-MED2-500"],
         "boost": 10,
     },
+    {
+        "name": "Papier à main brun/kraft → Snowsoft brun",
+        "keywords": ["papier main brun", "papier main kraft", "essuie-mains brun",
+                      "essuie-mains kraft", "hand towel brown", "hand towel kraft"],
+        "preferred_skus": ["SNS-HWT800K"],
+        "boost": 15,
+    },
+    {
+        "name": "Papier à main blanc → Snowsoft blanc",
+        "keywords": ["papier main blanc", "essuie-mains blanc", "hand towel white"],
+        "preferred_skus": ["SNS-HWT800W"],
+        "boost": 15,
+    },
+    {
+        "name": "Papier à main (générique) → Snowsoft brun par défaut",
+        "keywords": ["papier main", "essuie-mains", "essuie main", "hand towel",
+                      "paper towel", "papier à main"],
+        "preferred_skus": ["SNS-HWT800K"],  # Brun par défaut
+        "boost": 10,
+    },
+    {
+        "name": "Papier hygiénique emballé individuel → Everest 420",
+        "keywords": ["papier hygiénique emballé", "papier hygiénique individuel",
+                      "emballé individuel", "individually wrapped"],
+        "preferred_skus": ["SNS-48420"],
+        "boost": 15,
+    },
 ]
 
 
