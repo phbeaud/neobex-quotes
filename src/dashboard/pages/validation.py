@@ -222,14 +222,34 @@ def _render_product_card(line, best_product, best_score, all_suggestions,
                 results = session.query(Product).filter(
                     Product.title.ilike(f"%{search_term}%"),
                     Product.is_active == True,
-                ).limit(5).all()
+                ).limit(8).all()
                 if results:
                     for p in results:
-                        st.write(f"  • **{p.title[:60]}** — SKU: {p.internal_sku} — {p.price:.2f}$" if p.price else f"  • **{p.title[:60]}** — SKU: {p.internal_sku}")
+                        col_desc, col_btn = st.columns([4, 1])
+                        with col_desc:
+                            price_str = f" — {p.price:.2f}$" if p.price else ""
+                            st.write(f"**{p.title[:60]}** — SKU: {p.internal_sku}{price_str}")
+                        with col_btn:
+                            if st.button("✅ Choisir", key=f"pick_{int(line.id)}_{p.id}"):
+                                # Sauvegarder le choix manuel
+                                st.session_state.line_decisions[line.id] = "manual_pick"
+                                st.session_state.manual_picks = st.session_state.get("manual_picks", {})
+                                st.session_state.manual_picks[line.id] = p.id
+                                st.success(f"✅ {p.title[:50]} sélectionné!")
+                                st.rerun()
                 else:
                     st.caption("Aucun résultat")
 
-            # Decision
+            # Check if a manual pick was already made
+            manual_picks = st.session_state.get("manual_picks", {})
+            if line.id in manual_picks:
+                picked = session.get(Product, manual_picks[line.id])
+                if picked:
+                    st.success(f"✅ Sélectionné: **{picked.title[:60]}** — {picked.internal_sku}")
+                    st.session_state.line_decisions[line.id] = "manual_pick"
+                    return
+
+            # Decision if no manual pick
             decision = st.radio(
                 "Action", ["❌ Retirer de la soumission", "🔍 Chercher manuellement"],
                 key=f"action_{int(line.id)}")
