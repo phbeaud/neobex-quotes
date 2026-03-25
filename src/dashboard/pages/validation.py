@@ -224,19 +224,31 @@ def _render_product_card(line, best_product, best_score, all_suggestions,
                     Product.is_active == True,
                 ).limit(8).all()
                 if results:
+                    st.caption("Cochez le produit à utiliser :")
                     for p in results:
-                        col_desc, col_btn = st.columns([4, 1])
-                        with col_desc:
-                            price_str = f" — {p.price:.2f}$" if p.price else ""
-                            st.write(f"**{p.title[:60]}** — SKU: {p.internal_sku}{price_str}")
-                        with col_btn:
-                            if st.button("✅ Choisir", key=f"pick_{int(line.id)}_{p.id}"):
-                                # Sauvegarder le choix manuel
-                                st.session_state.line_decisions[line.id] = "manual_pick"
-                                st.session_state.manual_picks = st.session_state.get("manual_picks", {})
-                                st.session_state.manual_picks[line.id] = p.id
-                                st.success(f"✅ {p.title[:50]} sélectionné!")
-                                st.rerun()
+                        price_str = f" — {p.price:.2f}$" if p.price else ""
+                        cb_key = f"pick_{int(line.id)}_{p.id}"
+                        # Check if already selected
+                        already_picked = (
+                            st.session_state.get("manual_picks", {}).get(line.id) == p.id
+                        )
+                        checked = st.checkbox(
+                            f"{p.title[:70]}{price_str}",
+                            value=already_picked,
+                            key=cb_key,
+                        )
+                        if checked and not already_picked:
+                            # Sauvegarder le choix manuel
+                            st.session_state.line_decisions[line.id] = "manual_pick"
+                            if "manual_picks" not in st.session_state:
+                                st.session_state.manual_picks = {}
+                            st.session_state.manual_picks[line.id] = p.id
+                            st.rerun()
+                        elif not checked and already_picked:
+                            # Décocher = retirer le choix
+                            del st.session_state.manual_picks[line.id]
+                            st.session_state.line_decisions[line.id] = "remove"
+                            st.rerun()
                 else:
                     st.caption("Aucun résultat")
 
@@ -407,28 +419,52 @@ def _finalize(session, lines, request_id):
     equiv_count = 0
     removed = 0
 
+    manual_picks = st.session_state.get("manual_picks", {})
+
     for line in lines:
         decision = st.session_state.line_decisions.get(line.id, "keep")
 
-        if decision == "remove":
+        if decision == "remove" or decision == "search":
             line.status = "removed"
             removed += 1
             continue
 
-        # Find the selected suggestion (rank 1 by default)
-        sugg = session.query(QuoteSuggestion).filter(
-            QuoteSuggestion.quote_line_id == line.id,
-            QuoteSuggestion.rank == 1,
-        ).first()
+        # Manual pick → create suggestion if needed
+        if decision == "manual_pick" and line.id in manual_picks:
+            picked_product_id = manual_picks[line.id]
+            product = session.get(Product, picked_product_id)
+            if not product:
+                continue
+            # Create or update suggestion for this pick
+            sugg = session.query(QuoteSuggestion).filter(
+                QuoteSuggestion.quote_line_id == line.id,
+                QuoteSuggestion.product_id == picked_product_id,
+            ).first()
+            if not sugg:
+                sugg = QuoteSuggestion(
+                    quote_line_id=line.id,
+                    product_id=picked_product_id,
+                    score=100.0,
+                    rank=1,
+                    reason="manual_search",
+                )
+                session.add(sugg)
+            sugg.is_selected = True
+        else:
+            # Find the selected suggestion (rank 1 by default)
+            sugg = session.query(QuoteSuggestion).filter(
+                QuoteSuggestion.quote_line_id == line.id,
+                QuoteSuggestion.rank == 1,
+            ).first()
 
-        if not sugg:
-            continue
+            if not sugg:
+                continue
 
-        product = session.get(Product, sugg.product_id)
-        if not product:
-            continue
+            product = session.get(Product, sugg.product_id)
+            if not product:
+                continue
 
-        sugg.is_selected = True
+            sugg.is_selected = True
 
         # History
         history = ValidationHistory(
